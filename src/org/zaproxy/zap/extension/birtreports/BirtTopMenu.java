@@ -93,9 +93,9 @@ public class BirtTopMenu extends ExtensionAdaptor {
                 	
                 	ReportLastScan reportgen = new ReportLastScan();                	
                 	reportgen.generateXmlforBirtPdf(getView(), getModel());
-                	reportgen.executeBirtPdfReport(getView(),"reportdesignfiles/AlertsOwaspZap.rptdesign");
-                    View.getSingleton().showMessageDialog(getMessageString("menu.birtreport.pdf.generate"));
-                	//View.getSingleton().showMessageDialog("TEST");
+                	// pass the path of .rptdesign file
+                	reportgen.executeBirtPdfReport(getView(),"org/zaproxy/zap/extension/birtreports/reportdesignfiles/AlertsOwaspZap.rptdesign", getMessageString("birt.report.title"));
+                    //View.getSingleton().showMessageDialog(getMessageString("birt.report.title"));
                 }
             });
         }

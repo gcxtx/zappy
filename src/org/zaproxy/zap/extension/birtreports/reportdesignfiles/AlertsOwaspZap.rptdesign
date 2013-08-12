@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <report xmlns="http://www.eclipse.org/birt/2005/design" version="3.2.23" id="1">
     <property name="createdBy">Eclipse BIRT Designer Version 4.2.2.v201301221637 Build &lt;4.2.2.v20130216-1152></property>
+    <text-property name="title">My report</text-property>
     <property name="units">in</property>
     <property name="iconFile">/templates/blank_report.gif</property>
     <property name="bidiLayoutOrientation">ltr</property>
@@ -450,6 +451,7 @@
             <property name="borderTopColor">#CCCCCC</property>
             <property name="borderTopStyle">solid</property>
             <property name="borderTopWidth">1pt</property>
+            <property name="textAlign">right</property>
         </style>
         <style name="crosstab" id="6">
             <property name="borderBottomColor">#CCCCCC</property>
@@ -469,18 +471,53 @@
     <page-setup>
         <simple-master-page name="Simple MasterPage" id="2">
             <page-footer>
-                <text id="3">
-                    <property name="contentType">html</property>
-                    <text-property name="content"><![CDATA[<value-of>new Date()</value-of>]]></text-property>
-                </text>
+                <grid id="79">
+                    <property name="textAlign">center</property>
+                    <property name="width">1.8229166666666667in</property>
+                    <column id="80">
+                        <property name="width">0.78125in</property>
+                    </column>
+                    <column id="81">
+                        <property name="width">0.23958333333333334in</property>
+                    </column>
+                    <column id="82">
+                        <property name="width">0.8020833333333334in</property>
+                    </column>
+                    <row id="83">
+                        <cell id="84">
+                            <auto-text id="85">
+                                <property name="type">page-number</property>
+                            </auto-text>
+                        </cell>
+                        <cell id="86">
+                            <text id="87">
+                                <property name="contentType">plain</property>
+                                <text-property name="content"><![CDATA[/]]></text-property>
+                            </text>
+                        </cell>
+                        <cell id="88">
+                            <auto-text id="89">
+                                <property name="type">total-page</property>
+                            </auto-text>
+                        </cell>
+                    </row>
+                </grid>
             </page-footer>
         </simple-master-page>
     </page-setup>
     <body>
+        <text id="94">
+            <property name="contentType">html</property>
+            <text-property name="content"><![CDATA[<center><H4><value-of>reportContext.getReportRunnable().designHandle.getDesignHandle().getProperty("title")</value-of></H4>
+Report generated on <value-of>new Date()</value-of>
+</center>]]></text-property>
+        </text>
         <image id="9">
-            <property name="height">1.50in</property>
-            <property name="width">6.0in</property>
-            <method name="onCreate"><![CDATA[//Image in resource folder]]></method>
+            <property name="height">1.40625in</property>
+            <property name="width">6in</property>
+            <method name="onCreate"><![CDATA[//Image in resource folder
+this.file="logo.jpg";
+]]></method>
             <property name="source">file</property>
             <expression name="uri" type="constant">logo.jpg</expression>
         </image>

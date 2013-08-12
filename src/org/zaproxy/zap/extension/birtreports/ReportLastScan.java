@@ -30,10 +30,17 @@ package org.zaproxy.zap.extension.birtreports;
 import edu.stanford.ejalbert.BrowserLauncher;
 
 import java.awt.Desktop;
+import java.util.Iterator;
+import java.util.List;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.text.MessageFormat;
 import java.util.ResourceBundle;
 
@@ -44,6 +51,10 @@ import javax.swing.filechooser.FileFilter;
 import org.apache.log4j.Logger;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.control.Control;
+import org.parosproxy.paros.core.scanner.Alert;
+import org.parosproxy.paros.db.Database;
+import org.parosproxy.paros.db.RecordAlert;
+import org.parosproxy.paros.db.RecordScan;
 import org.parosproxy.paros.extension.Extension;
 import org.parosproxy.paros.extension.ExtensionLoader;
 import org.parosproxy.paros.extension.ViewDelegate;
@@ -64,16 +75,94 @@ import org.eclipse.birt.report.engine.api.IReportRunnable;
 import org.eclipse.birt.report.engine.api.IRunAndRenderTask;
 import org.eclipse.birt.report.engine.api.PDFRenderOption;
 import org.eclipse.birt.report.engine.api.impl.ReportEngine;
+import org.jdom.Element;
+import org.jdom.JDOMException;
+import org.jdom.filter.ElementFilter;
+import org.jdom.filter.Filter;
+import org.jdom.input.SAXBuilder;
 
 public class ReportLastScan {
 
     private Logger logger = Logger.getLogger(ReportLastScan.class);
     private ResourceBundle messages = null;
     private static String fileNameLogo="";
+    private StringBuilder sbXML;
     public ReportLastScan() {
     }
 
+    private String getAlertXML(Database db, RecordScan recordScan) throws SQLException {
 
+        Connection conn = null;
+        PreparedStatement psAlert = null;
+        StringBuilder sb = new StringBuilder();
+
+        // prepare table connection
+        try {
+            conn = db.getDatabaseServer().getNewConnection();
+            conn.setReadOnly(true);
+            // ZAP: Changed to read all alerts and order by risk
+            psAlert = conn.prepareStatement("SELECT ALERT.ALERTID FROM ALERT ORDER BY RISK, PLUGINID");
+            //psAlert = conn.prepareStatement("SELECT ALERT.ALERTID FROM ALERT JOIN SCAN ON ALERT.SCANID = SCAN.SCANID WHERE SCAN.SCANID = ? ORDER BY PLUGINID");
+            //psAlert.setInt(1, recordScan.getScanId());
+            psAlert.executeQuery();
+            ResultSet rs = psAlert.getResultSet();
+
+            if(rs == null)
+            	return "";
+            
+            RecordAlert recordAlert = null;
+            Alert alert = null;
+            Alert lastAlert = null;
+
+            StringBuilder sbURLs = new StringBuilder(100);
+            String s = null;
+
+            // get each alert from table
+            while (rs.next()) {
+                int alertId = rs.getInt(1);
+                recordAlert = db.getTableAlert().read(alertId);
+                alert = new Alert(recordAlert);
+
+                // ZAP: Ignore false positives
+                if (alert.getReliability() == Alert.FALSE_POSITIVE) {
+                    continue;
+                }
+
+                if (lastAlert != null
+                        && (alert.getPluginId() != lastAlert.getPluginId()
+                        || alert.getRisk() != lastAlert.getRisk())) {
+                    s = lastAlert.toPluginXML(sbURLs.toString());
+                    sb.append(s);
+                    sbURLs.setLength(0);
+                }
+
+                s = alert.getUrlParamXML();
+                sbURLs.append(s);
+
+                lastAlert = alert;
+
+            }
+            rs.close();
+
+            if (lastAlert != null) {
+                sb.append(lastAlert.toPluginXML(sbURLs.toString()));
+            }
+
+
+
+        } catch (SQLException e) {
+            logger.error(e.getMessage(), e);
+        } finally {
+            if (conn != null) {
+                conn.close();
+            }
+
+        }
+
+        //exit
+        return sb.toString();
+    }
+    
     public void uploadLogo (ViewDelegate view)
     {
         try {
@@ -121,13 +210,14 @@ public class ReportLastScan {
              
                     } catch (IOException e) {
                     	e.printStackTrace();
+                    	view.showWarningDialog("Error: Unable to upload the selected logo image.");
                     }
                 }
             }
 
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
-            //view.showWarningDialog(Constant.messages.getString("report.unexpected.warning"));
+            view.showWarningDialog("There is some problem in choosen logo image. Please try again.");
         }
     }
     
@@ -138,15 +228,49 @@ public class ReportLastScan {
 
         sb.append("<?xml version=\"1.0\"?>");
         sb.append("<OWASPZAPReport version=\"").append(Constant.PROGRAM_VERSION).append("\" generated=\"").append(ReportGenerator.getCurrentDateTimeString()).append("\">\r\n");
-        // sb.append(getAlertXML(model.getDb(), null));
-        sb.append(siteXML());
+        //sbXML = sb.append(getAlertXML(model.getDb(), null));
+        sbXML = siteXML();
+        // To call another function to filter xml records
+        //sbXML = filterXML(sbXML);
+        sb.append(sbXML);
         sb.append("</OWASPZAPReport>");
-
+         
         File report = ReportGenerator.stringToHtml(sb.toString(), xslFile, fileName);
 
         return report;
     }
 
+    private StringBuilder filterXML(StringBuilder xml) throws JDOMException, IOException
+    {
+    	// convert String into InputStream
+    	InputStream is = new ByteArrayInputStream(xml.toString().getBytes());
+    	
+    	StringBuilder sb = new StringBuilder (500);
+    	// load in xml file and get a handle on the root element
+        SAXBuilder builder = new SAXBuilder();
+        org.jdom.Document doc = builder.build(is);
+        Element rootElement = doc.getRootElement();
+        
+        // filter to get all immediate element nodes called 'colour'
+        // for a specific, the null represent the default namespace
+        Filter elementFilter = new ElementFilter( "alerts", null );
+    	
+        // gets all immediate nodes under the rootElement
+        List allNodes = (List) rootElement.getContent();
+
+        // gets all element nodes under the rootElement
+        List elements = (List) rootElement.getContent( elementFilter );
+     // cycle through all immediate elements under the rootElement
+        for( Iterator it = elements.iterator(); it.hasNext(); ) {
+          // note that this is a downcast because we
+          // have used the element filter.  This would
+          // not be the case for a getContents() on the element
+          Element anElement = (Element) it.next();
+          System.out.println( anElement );
+        }
+    	return sb;
+    }
+    
     private StringBuilder siteXML() {
         StringBuilder report = new StringBuilder();
         SiteMap siteMap = Model.getSingleton().getSession().getSiteTree();
@@ -246,7 +370,6 @@ public class ReportLastScan {
                             new Object[]{report.getAbsolutePath()}));
                 }
             }
-
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
             view.showWarningDialog(Constant.messages.getString("report.unexpected.warning"));
@@ -267,6 +390,9 @@ public class ReportLastScan {
                  return;                 
                
              }
+   	         if(sbXML.length()==0)
+    	       	view.showWarningDialog("You are about to generate an empty report.");
+
     		}
     		catch(Exception e)
     		{
@@ -278,7 +404,7 @@ public class ReportLastScan {
     	
     	
     }
-    public void executeBirtPdfReport(ViewDelegate view,String reportDesign)
+    public void executeBirtPdfReport(ViewDelegate view,String reportDesign, String title)
 	{
 		try {
 						
@@ -322,13 +448,20 @@ public class ReportLastScan {
                         
                         //BIRT engine code
                         EngineConfig config = new EngineConfig();
-                        config.setResourcePath(fileNameLogo);
+                        // set the resource path to the folder where logo image is placed 
+                        config.setResourcePath(fileNameLogo);  
             			Platform.startup(config);
             			
             			ReportEngine engine = new ReportEngine(config);
-            			
+            		
             			IReportRunnable reportRunnable = engine.openReportDesign(reportDesign);
             			IRunAndRenderTask runAndRender = engine.createRunAndRenderTask(reportRunnable);
+            			
+            			//Get Current Report Title
+            			System.out.println(reportRunnable.getDesignHandle().getProperty("title"));  // or IReportRunnable.TITLE
+            			
+            			//Set New Report Title
+            			reportRunnable.getDesignHandle().setProperty("title", title);
             			
             			PDFRenderOption option = new PDFRenderOption();
                         option.setOutputFileName(fileNameLc); // takes old file name but now I did some modification
@@ -338,7 +471,9 @@ public class ReportLastScan {
             			runAndRender.run();            			
             			runAndRender.close();
             			// open the PDF
-            			openPDF(new File(fileNameLc));
+            			boolean isOpen = openPDF(new File(fileNameLc));
+            			if(!isOpen)
+            				view.showWarningDialog("Error: Unable to open PDF from location: " + fileNameLc);
             			//engine.destroy();
             			//Platform.shutdown();
                     
@@ -349,6 +484,7 @@ public class ReportLastScan {
 				}catch (EngineException e) {
 					e.printStackTrace();
 					} catch (BirtException e) {
+						view.showWarningDialog("Error with BIRT API: " + e.toString());
 						e.printStackTrace();
 						}
 		
@@ -401,6 +537,7 @@ public class ReportLastScan {
     	}
     	return true;
     }
+    
     
     public static class OSDetector
     {
