@@ -35,6 +35,7 @@ import java.util.List;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
@@ -75,11 +76,27 @@ import org.eclipse.birt.report.engine.api.IReportRunnable;
 import org.eclipse.birt.report.engine.api.IRunAndRenderTask;
 import org.eclipse.birt.report.engine.api.PDFRenderOption;
 import org.eclipse.birt.report.engine.api.impl.ReportEngine;
-import org.jdom.Element;
 import org.jdom.JDOMException;
 import org.jdom.filter.ElementFilter;
+import org.jdom.Element;
 import org.jdom.filter.Filter;
 import org.jdom.input.SAXBuilder;
+//namespaces for documentbuilder and XPath
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+//import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
+import java.io.IOException;
+import org.xml.sax.SAXException;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.soap.Node;
 
 public class ReportLastScan {
 
@@ -87,6 +104,8 @@ public class ReportLastScan {
     private ResourceBundle messages = null;
     private static String fileNameLogo="";
     private StringBuilder sbXML;
+    private int totalCount = 0;
+    
     public ReportLastScan() {
     }
 
@@ -230,22 +249,28 @@ public class ReportLastScan {
         sb.append("<OWASPZAPReport version=\"").append(Constant.PROGRAM_VERSION).append("\" generated=\"").append(ReportGenerator.getCurrentDateTimeString()).append("\">\r\n");
         //sbXML = sb.append(getAlertXML(model.getDb(), null));
         sbXML = siteXML();
-        // To call another function to filter xml records
-        //sbXML = filterXML(sbXML);
         sb.append(sbXML);
         sb.append("</OWASPZAPReport>");
+        // To call another function to filter xml records
+        //sbXML = filterXML(sb);
          
         File report = ReportGenerator.stringToHtml(sb.toString(), xslFile, fileName);
 
         return report;
     }
 
-    private StringBuilder filterXML(StringBuilder xml) throws JDOMException, IOException
+    public int setCount(int count)
+    {
+    	return totalCount = count;
+    }
+    
+    private StringBuilder filterXML(StringBuilder xmlsb) throws JDOMException, IOException
     {
     	// convert String into InputStream
-    	InputStream is = new ByteArrayInputStream(xml.toString().getBytes());
     	
     	StringBuilder sb = new StringBuilder (500);
+    	
+    	InputStream is = new ByteArrayInputStream(xmlsb.toString().getBytes());
     	// load in xml file and get a handle on the root element
         SAXBuilder builder = new SAXBuilder();
         org.jdom.Document doc = builder.build(is);
@@ -268,7 +293,61 @@ public class ReportLastScan {
           Element anElement = (Element) it.next();
           System.out.println( anElement );
         }
-    	return sb;
+    	
+    	/*
+        String xmlString = xmlsb.toString();
+        try {
+        DocumentBuilderFactory builderFactory =
+                DocumentBuilderFactory.newInstance();
+        builderFactory.setNamespaceAware(false); // never forget this!
+        DocumentBuilder builder = builderFactory.newDocumentBuilder();
+        
+        Document xmlDocument = builder.parse(new ByteArrayInputStream(xmlString.getBytes()));
+       // Document xmlDocument = builder.parse(
+                //new FileInputStream("reportdesignfiles/xmloutput/xmloutputzap.xml"));
+ 
+        // get the first element
+        Element element = xmlDocument.getElementById("alertitem");
+
+        // get all child nodes
+        NodeList nodes = element.getChildNodes();
+
+        // print the text content of each child
+        for (int i = 0; i < nodes.getLength(); i++) {
+           System.out.println("" + nodes.item(i).getTextContent());
+        }
+        /*
+        XPath xPath =  XPathFactory.newInstance().newXPath();
+        String expression = "alertitem";
+        
+      //read a string value
+      
+	  //String email = xPath.compile(expression).evaluate(xmlDocument);       
+      //read an xml node using xpath
+      Node node = (Node) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODE);
+ //     if(node!=null)
+ //     System.out.println("Node: " + node.toString());
+      
+      //read a nodelist using xpath
+      NodeList nodeList = (NodeList) xPath.compile(expression).evaluate(xmlDocument, XPathConstants.NODESET);
+      System.out.println("Node List: " + nodeList.toString());
+      for (int i = 0; i < nodeList.getLength(); i++) {
+    	    System.out.println(nodeList.item(i).getFirstChild().getNodeValue()); 
+    	}*/
+        /*
+        } catch (SAXException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        catch (ParserConfigurationException e) {
+            e.printStackTrace();
+        } 
+        /*catch (XPathExpressionException e) {
+    		// TODO Auto-generated catch block
+    		e.printStackTrace();
+    	}*/
+      return sb;
     }
     
     private StringBuilder siteXML() {
@@ -303,6 +382,7 @@ public class ReportLastScan {
             Extension extension = loader.getExtension(i);
             if(extension instanceof XmlReporterExtension) {
                 extensionXml.append(((XmlReporterExtension)extension).getXml(site));
+                //extensionXml.append(((XmlReporterExtension)extension).getXmlgroup(site, totalCount));
             }
         }
         return extensionXml;
@@ -397,11 +477,10 @@ public class ReportLastScan {
     		catch(Exception e)
     		{
     		 logger.error(e.getMessage(), e);
-             view.showWarningDialog(Constant.messages.getString("report.unexpected.warning"));
+             //view.showWarningDialog(Constant.messages.getString("report.unexpected.warning"));
     		
     		 }
-    	
-    	
+
     	
     }
     public void executeBirtPdfReport(ViewDelegate view,String reportDesign, String title)

@@ -15,5 +15,6 @@ import org.parosproxy.paros.model.SiteNode;
 public interface XmlReporterExtension {
     
     String getXml(SiteNode site);
+    String getXmlgroup (SiteNode site, int count);
     
 }

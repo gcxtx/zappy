@@ -536,6 +536,79 @@ public class ExtensionAlert extends ExtensionAdaptor implements SessionChangedLi
     }
 
     @Override
+    // grouping of alerts data - must be done in ExtensionAlert.java in getXML method. Create a replica of this method
+    public String getXmlgroup(SiteNode site, int countTotal)
+    {
+    	List<Alert> temp = new ArrayList<>();
+    	List<Alert> sortAlerts = new ArrayList<>();
+    	int count = 1;
+    	int newid = 0;
+    	int oldid = 0;
+    	StringBuilder xml = new StringBuilder();
+        xml.append("<alerts>");
+        List<Alert> alerts = site.getAlerts();
+        //Alert[] alertsCopy = (Alert[]) alerts.toArray(); not working - cast exception
+        int size = alerts.size();
+
+        for (int i = 0; i < size; i++){
+        	System.out.println("Plugin ID Before Sorting: " + alerts.get(i).getPluginId());
+        }
+
+        for (int i = 0; i < size; i++){
+    	      
+    		for (int j = size-1; j >= (i+1); j--)
+    		{
+    			if (alerts.get(j).getPluginId() < alerts.get(j-1).getPluginId())
+    			{
+    				Alert tempAlert = alerts.get(j);
+    				alerts.set(j, alerts.get(j-1));
+    				alerts.set(j-1, tempAlert);
+    			}
+    		}
+        }
+        
+        for (int i = 0; i < size; i++){
+        	System.out.println("Plugin ID After sorting: " + alerts.get(i).getPluginId());
+        }
+        
+        oldid = alerts.get(0).getPluginId();
+    	for (Alert alert : alerts) {
+            if (alert.getReliability() != Alert.FALSE_POSITIVE) {
+            	
+            	newid = alert.getPluginId();
+            	if (newid == oldid & count > countTotal)
+            	{
+                 	oldid = newid;
+            		continue;
+            	}
+            	
+            	if (newid == oldid & count <= countTotal)
+            		count++;	
+    	
+            	if (newid != oldid)
+            	{
+            		count = 2;  // because the first alert will be added in this iteration
+            	}
+            	
+            	//add alert into a container
+            	temp.add(alert);
+            	oldid = newid;
+            			
+            }  // end if
+    	 } // end for-loop
+    	
+        for (Alert alert : temp) {
+            if (alert.getReliability() != Alert.FALSE_POSITIVE) {
+                String urlParamXML = alert.getUrlParamXML();
+                xml.append(alert.toPluginXML(urlParamXML));
+            }
+        }
+        xml.append("</alerts>");
+        return xml.toString();
+        
+    }
+    	 
+    @Override
 	public void sessionAboutToChange(Session session) {
 	}
 

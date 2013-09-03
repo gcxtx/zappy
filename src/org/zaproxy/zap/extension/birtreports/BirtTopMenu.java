@@ -31,6 +31,8 @@ import org.parosproxy.paros.extension.ExtensionAdaptor;
 import org.parosproxy.paros.extension.ExtensionHook;
 import org.parosproxy.paros.view.View;
 
+import com.lowagie.toolbox.Toolbox.Console;
+
 /*
  * An example ZAP extension which adds a top level menu item.
  *
@@ -46,7 +48,7 @@ public class BirtTopMenu extends ExtensionAdaptor {
      */
     public BirtTopMenu() {
         super();
-                initialize();
+        initialize();
     }
 
     /**
@@ -91,7 +93,9 @@ public class BirtTopMenu extends ExtensionAdaptor {
                         // In this case we'll just show a popup message.
                 	
                 	
-                	ReportLastScan reportgen = new ReportLastScan();                	
+                	ReportLastScan reportgen = new ReportLastScan();
+                	int count = Integer.parseInt(getMessageString("birt.report.count"));
+                	reportgen.setCount(count); 
                 	reportgen.generateXmlforBirtPdf(getView(), getModel());
                 	// pass the path of .rptdesign file
                 	reportgen.executeBirtPdfReport(getView(),"org/zaproxy/zap/extension/birtreports/reportdesignfiles/AlertsOwaspZap.rptdesign", getMessageString("birt.report.title"));
